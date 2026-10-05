@@ -101,3 +101,27 @@ The size of the 3 element list is 72, 72 minus 40 makes 32. Where does this 32 c
 Normally, it should be 8x3=24 bytes, not 32.
 So i tried to investigate it.
 
+I ran a code to find the capacity of the tuple:
+```python
+def capacity(lst):
+    return (lst.__sizeof__() - 40) // 8
+
+a = [1, 2, 3]
+print(len(a), capacity(a))  
+```
+
+```
+3 4 
+```
+Capacity is 4.
+
+### 4.3 Why 4 slots instead of 3
+ 
+The list holds 3 elements but has room for 4. Recent CPython versions (3.12 and later) round the initial capacity up to an even number when a list is built from a known-size sequence. So `[1, 2, 3]` reserves 4 slots, and 72 = 40 + 4 × 8. On older versions such as 3.11, the same list would typically report 64 bytes (40 + 3 × 8).
+
+## 5. Discussion and Critique
+ 
+**Tuples are cheaper, but the saving is constant.** For three elements, the list costs 24 bytes more (50% more). However, this overhead is mostly a fixed header plus spare capacity, so the relative difference shrinks as containers grow. For a single small container it rarely matters. For millions of small records (for example, rows of data or coordinates), choosing tuples can save significant memory.
+
+**The difference reflects a design trade-off, not inefficiency.** The list pays for mutability: an extra indirection to reach elements, a capacity field, and unused slots. In return it supports fast appends, insertions, and in-place modification. A tuple gives up all of that in exchange for compactness. Tuples are also hashable when their elements are, so they can be used as dictionary keys and set members, which lists cannot.
+
