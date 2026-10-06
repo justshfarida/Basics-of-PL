@@ -119,9 +119,56 @@ Capacity is 4.
  
 The list holds 3 elements but has room for 4. Recent CPython versions (3.12 and later) round the initial capacity up to an even number when a list is built from a known-size sequence. So `[1, 2, 3]` reserves 4 slots, and 72 = 40 + 4 × 8. On older versions such as 3.11, the same list would typically report 64 bytes (40 + 3 × 8).
 
+### 4.4 `__sizeof__()` vs. `sys.getsizeof()`
+
+Section 3.2 shows that the two functions give different results for the same objects:
+
+| Object | `__sizeof__()` | `sys.getsizeof()` | Difference |
+|---|---|---|---|
+| `(1, 2, 3)` | 48 | 64 | 16 |
+| `[1, 2, 3]` | 72 | 88 | 16 |
+| `()` | 24 | 40 | 16 |
+| `[]` | 40 | 56 | 16 |
+| `1` | 28 | 28 | 0 |
+| `3.5` | 24 | 24 | 0 |
+| `"abc"` | 44 | 44 | 0 |
+
+**What each function measures.**
+
+- `__sizeof__()` is a method that every object has. It returns the size of the object's own structure: exactly the fields described in sections 4.1 and 4.2, plus the separate pointer array for a list.
+- `sys.getsizeof()` calls `__sizeof__()` and then adds the extra memory that CPython keeps in front of the object for the garbage collector. According to the Python documentation, it "calls the object's `__sizeof__` method and adds an additional garbage collector overhead if the object is managed by the garbage collector."
+
+**Why only tuples and lists get the extra 16 bytes.** CPython frees most objects with reference counting: when `ob_refcnt` drops to 0, the object is deleted. This fails for objects that refer to each other in a cycle, for example a list that contains itself:
+
+```python
+a = []
+a.append(a)   # a refers to itself, so ob_refcnt never reaches 0
+del a         # the list can no longer be reached, but is not freed
+```
+
+To clean up such cycles, CPython has a separate cycle garbage collector. Only **containers** can be part of a cycle, because only they hold references to other objects. CPython therefore stores a small GC header directly in front of every container object. On a 64-bit build of CPython 3.13 this header holds two 8-byte pointers that link the object into the collector's list of tracked objects, so it takes **16 bytes**.
+
+Integers, floats and strings cannot reference other objects, so they have no GC header, and both functions return the same value for them.
+
+The extra 16 bytes depend on the **type**, not on whether the collector currently tracks this particular object. The empty tuple `()` is never tracked, because it cannot contain anything, but `sys.getsizeof(())` still adds 16 bytes because every tuple is allocated with room for the header.
+
+**What neither function measures.** Both functions are **shallow**: they report the memory of the container itself, not of the objects it points to. `sys.getsizeof([1, 2, 3])` counts the three 8-byte pointers in the list's array, but not the three 28-byte integer objects they point to. To measure everything a container holds, its elements have to be added up recursively, for example with the `tracemalloc` module or a third-party tool such as `pympler`.
+
+**Which one to use.** `sys.getsizeof()` is closer to the real memory cost of an object, because the GC header is allocated together with it. `__sizeof__()` matches the C structure of the object field by field, which is why the tables in this report use it.
+
 ## 5. Discussion and Critique
  
 **Tuples are cheaper, but the saving is constant.** For three elements, the list costs 24 bytes more (50% more). However, this overhead is mostly a fixed header plus spare capacity, so the relative difference shrinks as containers grow. For a single small container it rarely matters. For millions of small records (for example, rows of data or coordinates), choosing tuples can save significant memory.
 
 **The difference reflects a design trade-off, not inefficiency.** The list pays for mutability: an extra indirection to reach elements, a capacity field, and unused slots. In return it supports fast appends, insertions, and in-place modification. A tuple gives up all of that in exchange for compactness. Tuples are also hashable when their elements are, so they can be used as dictionary keys and set members, which lists cannot.
 
+## References
+
+- Python documentation, `sys.getsizeof`: https://docs.python.org/3/library/sys.html#sys.getsizeof
+- Python documentation, supporting cyclic garbage collection: https://docs.python.org/3/c-api/gcsupport.html
+- Python documentation, `gc` module: https://docs.python.org/3/library/gc.html
+- CPython source, `sys.getsizeof` implementation (`_PySys_GetSizeOf`): https://github.com/python/cpython/blob/3.13/Python/sysmodule.c
+- CPython source, GC header (`PyGC_Head`): https://github.com/python/cpython/blob/3.13/Include/internal/pycore_gc.h
+- CPython source, object header (`ob_refcnt`, `ob_type`, `ob_size`): https://github.com/python/cpython/blob/3.13/Include/object.h
+- CPython source, tuple structure: https://github.com/python/cpython/blob/3.13/Include/cpython/tupleobject.h
+- CPython source, list structure: https://github.com/python/cpython/blob/3.13/Include/cpython/listobject.h
