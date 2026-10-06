@@ -29,12 +29,16 @@ task3/
     ├── python/
     │   ├── matrix_multiplication.py   NumPy implementation and demo
     │   └── benchmark_matrix.py        execution time benchmark for NumPy
-    └── c/
-        ├── matrix.h                   declaration of the C function matrix_mul
-        ├── matrix.c                   C implementation (triple loop)
-        ├── main.c                     C demo program
-        ├── test_matrix.c              unit tests for the C implementation
-        └── benchmark_matrix.c         execution time benchmark for C
+    ├── c/
+    │   ├── matrix.h                   declaration of the C function matrix_mul
+    │   ├── matrix.c                   C implementation (triple loop)
+    │   ├── main.c                     C demo program
+    │   ├── test_matrix.c              unit tests for the C implementation
+    │   └── benchmark_matrix.c         execution time benchmark for C
+    └── chatgpt/                       ChatGPT's solution, unchanged (see section 9)
+        ├── numpy_matrix.py
+        ├── matrix.cpp
+        └── test_matrix.cpp
 ```
 
 ### Build and run
@@ -229,3 +233,53 @@ In terms of **code size**, NumPy is far more concise: the multiplication is a si
 In terms of **execution time**, NumPy is between 5 and 296 times faster, and the gap grows with matrix size. The naive C triple loop reads memory in a cache-unfriendly order and uses only one core, while NumPy relies on a BLAS library that uses cache blocking, vector instructions and multiple threads.
 
 Writing the algorithm by hand in C is valuable for understanding how matrix multiplication works, but for real workloads an optimized library is the better choice.
+
+## 9. Comparison with ChatGPT's Solution
+
+After finishing my own implementation, I asked ChatGPT to solve the same task and compared its answer with mine.
+
+### 9.1 How ChatGPT solved the task
+
+ChatGPT chose **C++** instead of C and produced three files, stored unchanged in `code/chatgpt/`:
+
+| File | Contents |
+|---|---|
+| `numpy_matrix.py` | `A @ B`, one hard-coded correctness check with `assert`, and a benchmark for N = 100, 200, 500, 1000 |
+| `matrix.cpp` | `matrixMultiply` using `vector<vector<double>>`, random matrix generation and a benchmark for the same sizes |
+| `test_matrix.cpp` | Its own copy of `matrixMultiply` plus 5 `assert`-based tests: 2×2, identity, zero, rectangular, invalid dimensions |
+
+It did not produce results or an analysis. Instead, it gave example output with placeholders (`0.000xxx seconds`), suggested counting lines with `wc -l`, and supplied two template paragraphs for the conclusion.
+
+I compiled and ran ChatGPT's code. All 5 unit tests pass, and both benchmarks run without errors. From `code/chatgpt/`:
+
+```powershell
+python numpy_matrix.py
+
+g++ -std=c++17 -O2 matrix.cpp -o matrix.exe
+.\matrix.exe
+
+g++ -std=c++17 test_matrix.cpp -o test_matrix.exe
+.\test_matrix.exe
+```
+
+### 9.2 What ChatGPT did well
+
+- **A faster loop order.** It ordered the loops as `i, k, j`, so matrix B is read along rows instead of down columns. The result is the same, but memory is accessed in order, which avoids the cache problem described in section 7.3. In a quick test at N = 1024, this was about **3× faster** than my `i, j, k` loop.
+- **Dimension checking.** `matrixMultiply` throws an exception if the columns of A do not match the rows of B, and one test checks this. My function receives the sizes as separate arguments, so it cannot detect a mismatch.
+
+### 9.3 Weaknesses
+
+- **The tests check a copy, not the real code.** `test_matrix.cpp` contains its own copy of `matrixMultiply`, so a bug fixed or introduced in `matrix.cpp` would go unnoticed. My solution shares one implementation (`matrix.c`) between the demo, tests and benchmark.
+- **Unreliable timing.** Each size is timed only once with an unfixed random seed. Very short runs like 100×100 are easily disturbed by other programs (section 7.3 shows one measurement varying 130× between runs), and the results cannot be reproduced. My benchmarks repeat each size for at least 0.5 seconds and use a fixed seed.
+
+### 9.4 Summary
+
+| | My solution | ChatGPT's solution |
+|---|---|---|
+| Language | C | C++ |
+| Loop order | `i, j, k` (cache-unfriendly for B) | `i, k, j` (cache-friendly, about 3× faster at N = 1024) |
+| Dimension check | No (sizes passed separately) | Yes, with an exception |
+| Tests use the real implementation | Yes (shared `matrix.c`) | No (separate copy) |
+| Number of tests | 10 | 5 |
+| Timing | Repeated until 0.5 s, fixed seed | Single run, random seed |
+
