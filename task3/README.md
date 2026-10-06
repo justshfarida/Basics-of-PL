@@ -23,36 +23,42 @@ All benchmarks were run on the same machine, from the command line.
 
 ## 3. Files
 
-All source files are in the `code/` folder.
-
-| File | Purpose |
-|---|---|
-| `matrix_multiplication.py` | NumPy implementation and demo |
-| `benchmark_matrix.py` | Execution time benchmark for NumPy |
-| `matrix.h` | Declaration of the C function `matrix_mul` |
-| `matrix.c` | C implementation (triple loop) |
-| `main.c` | C demo program |
-| `test_matrix.c` | Unit tests for the C implementation |
-| `benchmark_matrix.c` | Execution time benchmark for C |
+```
+task3/
+└── code/
+    ├── python/
+    │   ├── matrix_multiplication.py   NumPy implementation and demo
+    │   └── benchmark_matrix.py        execution time benchmark for NumPy
+    └── c/
+        ├── matrix.h                   declaration of the C function matrix_mul
+        ├── matrix.c                   C implementation (triple loop)
+        ├── main.c                     C demo program
+        ├── test_matrix.c              unit tests for the C implementation
+        └── benchmark_matrix.c         execution time benchmark for C
+```
 
 ### Build and run
 
-From the `code/` folder:
+C, from `code/c/`:
 
 ```powershell
-# C demo
+# Demo
 gcc -std=c99 -Wall -O2 main.c matrix.c -o matmul_demo.exe
 .\matmul_demo.exe
 
-# C unit tests
+# Unit tests
 gcc -std=c99 -Wall -O2 test_matrix.c matrix.c -o test_matrix.exe
 .\test_matrix.exe
 
-# C benchmark
+# Benchmark
 gcc -std=c99 -Wall -O2 benchmark_matrix.c matrix.c -o benchmark_matrix.exe
 .\benchmark_matrix.exe
+```
 
-# NumPy demo and benchmark
+Python, from `code/python/`:
+
+```powershell
+# Demo and benchmark
 python matrix_multiplication.py
 python benchmark_matrix.py
 ```
