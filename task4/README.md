@@ -30,15 +30,18 @@ task4/
     │   ├── slicing_image.py   converts the photo to grayscale and slices it with NumPy
     │   ├── compare.py         checks that the NumPy and C++ result images are identical
     │   └── images/            input.png and numpy_*.png
-    └── cpp/
-        ├── slicing.h          C++ slicing interface (Slice, indices, slice2d)
-        ├── slicing.cpp        C++ slicing implementation
-        ├── main.cpp           C++ slicing on the same 5×6 matrix
-        ├── slicing_image.cpp  slices the same grayscale image in C++
-        ├── stb_image.h        external library, only used to read PNG files
-        ├── stb_image_write.h  external library, only used to write PNG files
-        ├── stb_impl.cpp       compiles the stb library
-        └── images/            cpp_*.png
+    ├── cpp/
+    │   ├── slicing.h          C++ slicing interface (Slice, indices, slice2d)
+    │   ├── slicing.cpp        C++ slicing implementation
+    │   ├── main.cpp           C++ slicing on the same 5×6 matrix
+    │   ├── slicing_image.cpp  slices the same grayscale image in C++
+    │   ├── stb_image.h        external library, only used to read PNG files
+    │   ├── stb_image_write.h  external library, only used to write PNG files
+    │   ├── stb_impl.cpp       compiles the stb library
+    │   └── images/            cpp_*.png
+    └── chatgpt/               ChatGPT's solution (see section 10)
+        ├── slicing.py
+        └── slicing.c
 ```
 
 ### Build and run
@@ -233,3 +236,47 @@ All five results are identical, pixel for pixel.
 ## 9. Conclusion
 
 2D slicing was implemented with NumPy's built-in syntax and by hand in C++, following Python's rules for start, stop, step, negative indices and clamping. Both implementations give identical results on a small test matrix and on a 447 × 447 grayscale photo, as shown by the side-by-side images and confirmed by a pixel-by-pixel comparison. NumPy makes slicing a one-line operation that does not even copy data, while the C++ version shows how much logic that single line hides.
+
+## 10. Comparison with ChatGPT's Solution
+
+After finishing my own implementation, I asked ChatGPT to solve the same task. Its code is stored in `code/chatgpt/`. The Python code was received with its line breaks lost when copying, so they were restored; nothing else was changed.
+
+### 10.1 How ChatGPT solved the task
+
+ChatGPT chose **C** and wrote two short programs:
+
+- `slicing.py` creates a 5×5 matrix with the values 1–25 and prints `matrix[1:4, 1:4]`.
+- `slicing.c` stores the same matrix in a fixed-size array and prints the same region with two nested loops from `row_start` to `row_end` and from `col_start` to `col_end`.
+
+For the graphical part, it described a text layout with both outputs side by side and offered to generate a PNG of it, but did not apply slicing to an actual image.
+
+I ran both programs from `code/chatgpt/`. Both print the same 3×3 result, `7 8 9 / 12 13 14 / 17 18 19`:
+
+```powershell
+python slicing.py
+
+gcc -std=c99 -Wall slicing.c -o slicing.exe
+.\slicing.exe
+```
+
+### 10.2 What ChatGPT did well
+
+- **Very simple and easy to follow.** The C version shows the core idea of slicing in a few lines: two nested loops over a start/end range are equivalent to `matrix[1:4, 1:4]`.
+- **Correct for the case it covers.** Both programs give the same result for the single slice it tested.
+
+### 10.3 Weaknesses
+
+- **Only basic crops are supported.** There is no step, no negative indices and no default start or stop, so slices like `m[::2, ::2]`, `m[:, ::-1]` or `m[-2:, -3:]` cannot be expressed. My `indices()` function implements all of Python's slicing rules and was tested on all of these cases.
+- **No real result to compare.** The C code prints values inside the loop instead of building a new matrix, and there is no reusable function. The result therefore cannot be saved as an image or checked automatically, and the "graphical image" was a hand-written text layout rather than a picture generated from both programs' actual output. My solution slices a real photo in both languages and verifies every pixel with `compare.py`.
+
+### 10.4 Summary
+
+| | My solution | ChatGPT's solution |
+|---|---|---|
+| Language | C++ | C |
+| Slicing rules | start, stop, step, negative indices, defaults | start and stop only |
+| Reusable slicing function | Yes (`slice2d`, `indices`) | No (loops inside `main`) |
+| Result stored as a new matrix | Yes | No, printed directly |
+| Applied to a real image | Yes, 447 × 447 photo, 5 slices | No, text layout only |
+| Verification | Pixel-by-pixel with `compare.py` | Visual comparison of printed output |
+
