@@ -3,12 +3,12 @@ import os
 import numpy as np
 from PIL import Image
 
-os.makedirs("../images", exist_ok=True)
+os.makedirs("images", exist_ok=True)
 
 # Load the photo as grayscale, so it is a 2D matrix of values 0-255.
 # Both the Python and the C++ program start from this same input.png.
-img = np.array(Image.open("../image_cat.jpg").convert("L"))
-Image.fromarray(img).save("../images/input.png")
+img = np.array(Image.open("../../image_cat.jpg").convert("L"))
+Image.fromarray(img).save("images/input.png")
 h, w = img.shape
 
 cases = {
@@ -21,5 +21,5 @@ cases = {
 
 print(f"input: {h} x {w}")
 for name, result in cases.items():
-    Image.fromarray(result).save(f"../images/numpy_{name}.png")
+    Image.fromarray(result).save(f"images/numpy_{name}.png")
     print(f"{name}: {result.shape[0]} x {result.shape[1]}")
