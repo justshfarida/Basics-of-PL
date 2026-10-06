@@ -175,3 +175,51 @@ NumPy was run with its default settings, so its BLAS library may use **several C
 | 512 | 138.000 | 1.551 | 89× |
 | 1024 | 2829.000 | 9.561 | 296× |
 
+### 7.3 Analysis
+ 
+**Expected growth.** Multiplying two N×N matrices takes N³ multiply-add operations. Doubling N therefore makes the work 8 times larger, so the time should also grow by roughly 8×.
+ 
+| N | C growth | NumPy growth |
+|---|---|---|
+| 64 → 128 | 11.3× | 6.8× |
+| 128 → 256 | 16.7× | 3.5× |
+| 256 → 512 | 9.1× | 4.1× |
+| 512 → 1024 | 20.5× | 6.2× |
+ 
+The C version grows **faster than 8×**, and the NumPy version grows **slower than 8×**. To see what this means, it helps to measure how much work each version does per second, not just how long it takes.
+
+This is measured in **GFLOPS** (giga floating-point operations per second): how many **billions** of calculations on decimal numbers a program completes every second. Higher is better.
+
+In the inner loop, each step does one multiplication and one addition, so 2 operations. The loop runs N × N × N times, so one N×N multiplication does **2N³** operations in total. Dividing this by the measured time gives the GFLOPS. For example, the C version at N = 1024 does 2 × 1024³ ≈ 2.15 billion operations in 2.829 seconds, which is about 0.76 GFLOPS:
+
+| N | C (GFLOPS) | NumPy (GFLOPS) |
+|---|---|---|
+| 64 | 6.6 | 32.8 |
+| 128 | 4.6 | 38.8 |
+| 256 | 2.2 | 88.8 |
+| 512 | 1.9 | 173.1 |
+| 1024 | 0.8 | 224.6 |
+
+The C implementation does **less work per second** as the matrices grow, while NumPy does **more work per second**. So the C version is not only slower in total; it becomes less efficient on large inputs.
+
+**Why C slows down: memory access.** In the inner loop, matrix A is read along a row (`a[i * cols_a + k]`, consecutive addresses), but matrix B is read down a column (`b[k * cols_b + j]`, addresses `cols_b × 8` bytes apart). The CPU loads memory in small blocks called cache lines. Reading A uses every value in each loaded block, but reading B uses only one value per block before jumping to a new one. While the matrices are small, they fit entirely in the CPU cache, and this does not matter much. Once they grow larger than the cache (a 1024×1024 matrix of doubles is 8 MB), most reads of B must wait for main memory, which is many times slower than the cache. This is why the C version's efficiency drops by about 8× between N = 64 and N = 1024.
+
+**Why NumPy is faster.** The `@` operator calls a BLAS library, which is specialized for this exact operation:
+
+- **Cache blocking:** it splits the matrices into small blocks that fit in the cache and reuses each block many times before moving on, avoiding the access pattern that slows down the C loop.
+- **SIMD instructions:** it uses vector instructions that perform several multiplications in a single CPU instruction.
+- **Multithreading:** for larger matrices, it splits the work across several CPU cores.
+
+At N = 64 the matrices are small, the work is short, and the gap is only 5×. As N grows, these optimizations matter more, and BLAS can keep more cores busy, so the gap grows to almost 300×.
+
+**Measurement notes.** Early runs of the NumPy benchmark in an online compiler gave inconsistent results, for example N = 128 taking 56.6 ms in one run and 0.4 ms in the next. Online compilers run on shared servers, where other users' programs compete for the CPU. All results in this report were therefore measured on the local machine. Timings will differ on other computers, but the overall pattern should be the same.
+
+## 8. Conclusion
+
+Both implementations produce the same results, and the C version passes all 10 unit tests.
+
+In terms of **code size**, NumPy is far more concise: the multiplication is a single operator, while the C version needs explicit loops, manual index calculations, and a separate header so the function can be reused and tested. On the other hand, the compiled C program is only 53 KB, while NumPy is a 31 MB package.
+
+In terms of **execution time**, NumPy is between 5 and 296 times faster, and the gap grows with matrix size. The naive C triple loop reads memory in a cache-unfriendly order and uses only one core, while NumPy relies on a BLAS library that uses cache blocking, vector instructions and multiple threads.
+
+Writing the algorithm by hand in C is valuable for understanding how matrix multiplication works, but for real workloads an optimized library is the better choice.
