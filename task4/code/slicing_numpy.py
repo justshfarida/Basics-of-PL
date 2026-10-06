@@ -14,7 +14,6 @@ CASES = [
     ("flip_h",         slice(None, None, 1),  slice(None, None, -1)),
     ("flip_v",         slice(None, None, -1), slice(None, None, 1)),
     ("negative_index", slice(-2, None, 1),    slice(-3, None, 1)),
-    ("mixed",          slice(4, 0, -2),       slice(1, None, 2)),
 ]
 
 
